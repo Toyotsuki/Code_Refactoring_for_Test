@@ -1,1 +1,57 @@
+//コード改善前
 
+//呼び出されるKotlin object
+object PreferenceObject{
+    var preferences = PreferencesManager
+    .getDefaultSharedPreferences(MyApplication.getInstance());
+    fun getUserName(): String {
+        return preferences.getString("name", "") 
+    }
+}
+//ユニットテストでpresenterからobjectクラスを参照した時点で、エラーでテストが落ちる。
+
+
+//インターフェースの抽出による解決
+//コード改善後
+//Singleton内のメソッドをすべて抽出する
+interface PreferenceInterface {
+    fun getUserName(): String
+}
+
+//objectクラスにインターフェースを実装する形に変更
+object PreferenceObject: PreferenceInterface {
+    var preferences = PreferencesManager
+    .getDefaultSharedPreferences(MyApplication.getInstance());
+    //メソッド名に変更はないため、このメソッドを使用している箇所に影響はない
+    override fun getUserName(): String {
+        return preferences.getString("name", "") 
+    }
+}
+
+//変更後のPresenter
+//Presenterの依存する先がobjectではなくインターフェースになり、依存を切り離せる。
+class somePresenter(val view: SomeView,
+                    val preference: PreferenceInterface = PreferenceObject) {
+                    fun clickSomething() {
+                    view.setName(preference.getUserName())
+                    }
+}
+
+//Presenterのテストコード
+class SomePresenterTest {
+    private lateinit var somePresenter: SomePresenter
+    val view = mockk<SomeView>
+    //インターフェースのmock
+    val preference = mockk<PreferenceInterface>()
+    
+    @Before
+    fun setUp {
+        somePresenter = SomePresenter(view, preference)
+    }
+    @Test
+    fun clickSomething {
+        every{ preference.getUserName() } returns "hoge"
+        somePresenter.clickSomething()
+        verify(exactry = 1) { view.setName("hoge") }
+    }
+}
