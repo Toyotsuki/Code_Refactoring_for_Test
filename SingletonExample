@@ -1,1 +1,64 @@
+//コード改善前
+//呼び出されるシングルトンクラス
+public class PreferenceSingleton { 
+    private static PreferenceSingleton instance;
+    private static SharedPreferences preferences;
+    private PreferenceSingleton() {
+    preferences = PreferenceManager
+    .getDefaultSharedPreferences(MyApplication.getInstance());
+    }
+    public static PreferenceSingleton getInstance() {
+    if (instance == null) {
+        instance = new PreferenceSingleton();
+        }
+    return instance;
+    }
+    
+    public String getUserName() {
+        return preferences.getString("name", "");
+    }
+}
 
+//呼び出すPresenter
+class SomePresenter(val view: SomeView) {
+    fun clickSomething() {
+        view.setName(PreferenceSingleton.getInstance().getUserName())
+    }
+}
+
+/* このままだとgetInctance()の中でSharedPreferenceの生成処理が入るため、
+ * Presenterのユニットテストを実行しようとするとエラー落ちになりテストができない。
+ */
+ 
+//コンストラクタインジェクションによる解決
+//変更後のPresenter
+
+class SomePresenter(val view: SomeView,
+                    val managerSingleton: PreferenceSingleton =
+                        PreferenceSingleton.getInstance) {
+    fun clickSomething() {
+        view.setName(PreferenceSingleton.getInstance().getUserName())
+    }
+}
+
+//Presenterのテストコードを実行できる
+
+//MockKによりMockを生成しPresenterに注入する
+class SomePresenterTest {
+    private lateinit var somePresenter: SomePresenter
+    val view = mockk<SomeView>()
+    val preferenceSingleton = mockk<PreferenceSingleton>()
+    
+    @Before
+    fun setUp() {
+    //mockをPresenterに注入
+    somePresenter = SomePresenter(view, preferenceSingleton)
+    }
+    //外部から値を渡すことができる
+    @Test
+    fun clickSomething {
+    every { preferenceSingleton.getUserName() } returns "hoge"
+    somePresenter.clickSomething()
+    verify(exactly = 1) { view.setName("hoge") }
+    }
+}
